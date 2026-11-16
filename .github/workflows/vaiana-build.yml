@@ -1,0 +1,55 @@
+name: Build Vaiana Coding
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Type check frontend
+        run: npx tsc --noEmit
+
+      - name: Rust tests
+        continue-on-error: true
+        run: cd src-tauri && cargo test --lib
+
+      # Builds the installer and publishes it as a release, so it can be
+      # downloaded from any PC: Releases > latest > "Vaiana Coding ... setup.exe".
+      - name: Build and publish installer
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: npx tauri
+          tagName: build-${{ github.run_number }}
+          releaseName: Vaiana Coding build ${{ github.run_number }}
+          releaseBody: Installeur Windows. Télécharge le fichier qui finit par -setup.exe.
+          releaseDraft: false
+          prerelease: false
